@@ -1,0 +1,9 @@
+{
+  "name": "hexey-frida-bridges",
+  "private": true,
+  "description": "Builds src/remote-device/scripts/frida-bridges.js. Run: npm ci && python build.py",
+  "dependencies": {
+    "frida-java-bridge": "7.0.13",
+    "frida-objc-bridge": "8.0.6"
+  }
+}

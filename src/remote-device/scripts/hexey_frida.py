@@ -16,6 +16,29 @@ import time
 import traceback
 
 import frida
+import re
+
+# Frida 17 no longer puts the Java and ObjC bridges in the runtime; this bundle
+# (see scripts/frida-bridges/) defines them for scripts that use them.
+BRIDGES_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "frida-bridges.js")
+USES_BRIDGE = re.compile(r"\b(Java|ObjC)\b")
+_bridges = [None]
+
+
+def bridges_source():
+    if _bridges[0] is None:
+        try:
+            with open(BRIDGES_FILE, encoding="utf-8") as f:
+                _bridges[0] = f.read()
+        except OSError as e:
+            raise ValueError("Java/ObjC bridge bundle missing (%s); reinstall the package" % e)
+    return _bridges[0]
+
+
+def create_script(s, source):
+    if USES_BRIDGE.search(source):
+        source = bridges_source() + "\n;\n" + source
+    return s["session"].create_script(source)
 
 # ---------------------------------------------------------------------------
 # Global state
@@ -127,7 +150,7 @@ def run_js(s, source, wait=5.0, max_messages=5000, keep=False):
             messages.append({"error": msg.get("description"), "stack": msg.get("stack")})
             finished.set()
 
-    script = s["session"].create_script(source)
+    script = create_script(s, source)
     script.on("message", on_message)
     script.load()
     finished.wait(wait)
@@ -390,7 +413,7 @@ def op_load_script(req):
         elif msg.get("type") == "error":
             add_error(sid, msg.get("description", "script error"))
 
-    script = s["session"].create_script(source)
+    script = create_script(s, source)
     script.on("message", on_message)
     script.load()
 
@@ -436,7 +459,7 @@ def op_reload_script(req):
         elif msg.get("type") == "error":
             add_error(sid, msg.get("description", "script error"))
 
-    script = s["session"].create_script(source)
+    script = create_script(s, source)
     script.on("message", on_message)
     script.load()
     ns[script_id] = {"script": script, "name": name, "source": source}
@@ -522,7 +545,7 @@ def op_hook(req):
         elif msg.get("type") == "error":
             add_error(sid, msg.get("description", "hook error"))
 
-    script = s["session"].create_script(
+    script = create_script(s, 
         HOOK_JS % (json.dumps(target), nargs, json.dumps(hook_id))
     )
     script.on("message", on_message)
@@ -603,7 +626,7 @@ def op_replace(req):
         elif msg.get("type") == "error":
             add_error(sid, msg.get("description", "replace error"))
 
-    script = s["session"].create_script(js)
+    script = create_script(s, js)
     script.on("message", on_message)
     script.load()
     active_hooks.setdefault(sid, {})[hook_id] = {
@@ -1076,7 +1099,7 @@ def load_confirmed_hook(s, sid, source, kind, target, wait=10.0):
             else:
                 add_error(sid, description)
 
-    script = s["session"].create_script(source)
+    script = create_script(s, source)
     script.on("message", on_message)
     script.load()
     confirmed.wait(wait)

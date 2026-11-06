@@ -56,9 +56,13 @@ if (setup && process.platform === 'win32') {
     assert.ok(regs.registers.pc && regs.registers.sp, `registers: ${JSON.stringify(regs)}`);
     assert.equal((await call('frida_get_registers', { session: s, thread_id: 1 })).isError, true);
     const java = await call('frida_java_hook', { session: s, class_name: 'java.lang.String', method: 'length' });
+    // The bridges load (so the error names the missing runtime, not a missing bridge)
     assert.equal(java.isError, true, `java hook without a Java runtime: ${java.content[0].text}`);
+    assert.match(java.content[0].text, /no Java runtime in this process/);
     const objc = await call('frida_objc_hook', { session: s, class_name: 'NSString', method: '- length' });
     assert.equal(objc.isError, true, `objc hook without an ObjC runtime: ${objc.content[0].text}`);
+    assert.match(objc.content[0].text, /no Objective-C runtime in this process/);
+    await ok('frida_run_script', { session: s, source: 'send({ java: Java.available, objc: ObjC.available }); send({ done: true });', timeout_ms: 5000 }, /"java": false,\s*"objc": false/);
     assert.doesNotMatch(await ok('frida_list_sessions', {}), /"java"|"objc"/);
     const bad = await call('frida_read_memory', { session: s, address: '0x1', length: 4 });
     assert.equal(bad.isError, true);
