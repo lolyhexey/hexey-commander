@@ -23,7 +23,7 @@ export function isRemoteToolAllowed(name: string): boolean {
  * and stay under the database's size check on the whole column, which refuses
  * the entire write, not just the list.
  */
-export const MAX_PUBLISHED_TOOLS = 100;
+export const MAX_PUBLISHED_TOOLS = 200;
 export const MAX_PUBLISHED_TOOLS_BYTES = 480 * 1024;
 
 /**

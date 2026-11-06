@@ -71,15 +71,15 @@ check('skips entries that are not tools instead of failing the registration', as
 });
 
 check('a list too large for the backend is left out, so the registration write cannot be refused', async () => {
-    const tooMany = Array.from({ length: 101 }, (_, index) => tool(`tool_${index}`));
+    const tooMany = Array.from({ length: 201 }, (_, index) => tool(`tool_${index}`));
     const tooBig = [tool('read_file', { description: 'x'.repeat(600 * 1024) })];
     for (const tools of [tooMany, tooBig]) {
         const { written } = await register({ tools });
         assert.equal('tools' in written, false);
         assert.equal(written.app_version, VERSION);
     }
-    const { written } = await register({ tools: Array.from({ length: 100 }, (_, index) => tool(`tool_${index}`)) });
-    assert.equal(written.tools.length, 100, 'exactly the limit is published');
+    const { written } = await register({ tools: Array.from({ length: 200 }, (_, index) => tool(`tool_${index}`)) });
+    assert.equal(written.tools.length, 200, 'exactly the limit is published');
 });
 
 let failed = 0;

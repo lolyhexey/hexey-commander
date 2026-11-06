@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import { captureRemote } from '../utils/capture.js';
 import { resolveShellPath } from '../utils/shell.js';
 import { GHIDRA_TOOLS, callGhidraTool, isGhidraTool, resolveGhidraSetup } from './ghidra-tools.js';
+import { FRIDA_TOOLS, callFridaTool, isFridaTool, resolveFridaSetup } from './frida-tools.js';
 
 /** The device's environment, as the string map a child process gets */
 function deviceEnvironment(): Record<string, string> {
@@ -299,11 +300,16 @@ export class DesktopCommanderIntegration {
         // Restart the child if it died since the last call, so a one-off crash
         // costs one failed call instead of wedging the device until a human
         // restarts `desktop-commander remote`.
-        // Ghidra tools run here on the device, not in the local MCP child.
+        // Ghidra and Frida tools run here on the device, not in the local MCP child.
         if (isGhidraTool(toolName)) {
             const setup = resolveGhidraSetup();
             if (!setup) throw new Error('Ghidra is not set up on this device (set GHIDRA_INSTALL_DIR).');
             return callGhidraTool(setup, toolName, args ?? {});
+        }
+        if (isFridaTool(toolName)) {
+            const setup = resolveFridaSetup();
+            if (!setup) throw new Error('Frida is not set up on this device (set FRIDA_ENABLED=1 and install the frida Python module).');
+            return callFridaTool(setup, toolName, args ?? {});
         }
 
         await this.ensureReady();
@@ -345,10 +351,11 @@ export class DesktopCommanderIntegration {
             // List tools from MCP server
             const mcpTools = await this.mcpClient.listTools();
 
-            // Merge tools; Ghidra's only when this device has opted in.
+            // Merge tools; Ghidra's and Frida's only when this device has opted in.
             const ghidra = resolveGhidraSetup() ? GHIDRA_TOOLS : [];
+            const frida = resolveFridaSetup() ? FRIDA_TOOLS : [];
             return {
-                tools: [...(mcpTools.tools || []), ...ghidra]
+                tools: [...(mcpTools.tools || []), ...ghidra, ...frida]
             };
         } catch (error) {
             console.error('Error fetching capabilities:', error);
