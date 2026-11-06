@@ -1029,35 +1029,61 @@ JNI_TRACE_JS = """
 const f = %s;
 const maxEvents = %d;
 let count = 0;
-const jniNames = ['FindClass', 'GetMethodID', 'GetStaticMethodID', 'GetFieldID',
-  'CallObjectMethod', 'CallVoidMethod', 'CallIntMethod', 'CallBooleanMethod',
-  'NewStringUTF', 'GetStringUTFChars', 'RegisterNatives', 'NewGlobalRef',
-  'DeleteGlobalRef', 'NewLocalRef', 'DeleteLocalRef', 'ExceptionCheck',
-  'ExceptionClear', 'ExceptionDescribe'];
-
-const env = Java.vm.tryGetEnv();
-if (!env) { send({ error: 'Java VM not available' }); send({ done: true }); }
-else {
-  const mod = Process.findModuleByName('libart.so') || Process.findModuleByName('libdvm.so');
-  if (!mod) { send({ error: 'ART/DVM module not found' }); send({ done: true }); }
-  else {
-    const exports = mod.enumerateExports();
-    jniNames.forEach(function(name) {
-      if (f && !name.toLowerCase().includes(f.toLowerCase())) return;
-      const match = exports.find(e => e.name.includes(name));
-      if (!match) return;
-      try {
-        Interceptor.attach(match.address, {
-          onEnter: function(args) {
-            if (++count > maxEvents) return;
-            send({ event: 'jni', function: name, thread: this.threadId, at: Date.now() });
-          }
-        });
-      } catch(e) {}
-    });
-    send({ tracing: true, filter: f || 'all' });
+// JNI functions are not exported by libart; they are reached through the JNIEnv
+// function table, whose slots are fixed by the JNI specification.
+const slots = {
+  FindClass: 6, ExceptionDescribe: 16, ExceptionClear: 17, NewGlobalRef: 21, DeleteGlobalRef: 22,
+  DeleteLocalRef: 23, NewLocalRef: 25, GetMethodID: 33, CallObjectMethod: 34, CallBooleanMethod: 37,
+  CallIntMethod: 49, CallVoidMethod: 61, GetFieldID: 94, GetStaticMethodID: 113, GetStaticFieldID: 144,
+  NewStringUTF: 167, GetStringUTFChars: 169, RegisterNatives: 215, ExceptionCheck: 228,
+};
+const str = p => { try { return p.isNull() ? null : p.readCString(); } catch (e) { return null; } };
+const describe = {
+  FindClass: a => ({ name: str(a[1]) }),
+  GetMethodID: a => ({ name: str(a[2]), sig: str(a[3]) }),
+  GetStaticMethodID: a => ({ name: str(a[2]), sig: str(a[3]) }),
+  GetFieldID: a => ({ name: str(a[2]), sig: str(a[3]) }),
+  GetStaticFieldID: a => ({ name: str(a[2]), sig: str(a[3]) }),
+  NewStringUTF: a => ({ value: str(a[1]) }),
+  RegisterNatives: a => {
+    const n = a[3].toInt32();
+    const methods = [];
+    for (let i = 0; i < Math.min(n, 50); i++) {
+      const m = a[2].add(i * 3 * Process.pointerSize);
+      methods.push({ name: str(m.readPointer()), sig: str(m.add(Process.pointerSize).readPointer()),
+        fn: m.add(2 * Process.pointerSize).readPointer().toString() });
+    }
+    return { count: n, methods: methods };
+  },
+};
+const emit = (name, thread, extra) => {
+  if (++count > maxEvents) return;
+  send(Object.assign({ event: 'jni', function: name, thread: thread, at: Date.now() }, extra));
+};
+if (typeof Java === 'undefined' || !Java.available) throw new Error('no Java runtime in this process (not an Android app)');
+const env = Java.vm.getEnv();
+const table = env.handle.readPointer();
+const hooked = [];
+for (const name of Object.keys(slots)) {
+  if (f && !name.toLowerCase().includes(f.toLowerCase())) continue;
+  const target = table.add(slots[name] * Process.pointerSize).readPointer();
+  const d = describe[name];
+  const callbacks = {
+    onEnter: function (args) {
+      if (name === 'GetStringUTFChars') return;
+      let extra = {};
+      if (d) { try { extra = d(args); } catch (e) {} }
+      emit(name, this.threadId, extra);
+    },
+  };
+  if (name === 'GetStringUTFChars') {
+    callbacks.onLeave = function (ret) { emit(name, this.threadId, { value: str(ret) }); };
   }
+  Interceptor.attach(target, callbacks);
+  hooked.push(name);
 }
+if (hooked.length === 0) throw new Error('no JNI function matches filter: ' + f);
+send({ tracing: true, filter: f || 'all', functions: hooked });
 """
 
 
@@ -1140,6 +1166,8 @@ def op_jni_trace(req):
     duration = float(req.get("duration_ms") or 5000) / 1000.0
     msgs = run_js(s, JNI_TRACE_JS % (json.dumps(flt), max_events),
                   wait=duration, max_messages=max_events + 10)
+    if msgs and "error" in msgs[0]:
+        raise ValueError(msgs[0]["error"])
     return [m.get("payload", m) for m in msgs]
 
 
