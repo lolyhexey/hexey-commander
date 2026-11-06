@@ -48,6 +48,18 @@ if (setup && process.platform === 'win32') {
     const tr = await ok('frida_trace_function', { session: s, target: 'kernel32.dll!GetTickCount', duration_ms: 1500 }, /"resolved": "0x/);
     assert.ok(tr.startsWith('['), tr.slice(0, 200));
     await ok('frida_run_script', { session: s, source: 'send(Process.arch); send({done:true});', timeout_ms: 3000 }, /"payload": "(x64|ia32|arm64)"/);
+    const scan = JSON.parse(await ok('frida_scan_memory', { session: s, pattern: '4d 5a 90 00', max: 1000 }));
+    assert.ok(scan.length > 0, 'scan finds the PE header of a loaded module');
+    assert.ok(scan.some((m) => m.address === base), `scan finds kernel32 at ${base}: ${JSON.stringify(scan)}`);
+    const threadId = Number((await ok('frida_list_threads', { session: s }, /^\d+\s/m)).split(/\s+/)[0]);
+    const regs = JSON.parse(await ok('frida_get_registers', { session: s, thread_id: threadId }));
+    assert.ok(regs.registers.pc && regs.registers.sp, `registers: ${JSON.stringify(regs)}`);
+    assert.equal((await call('frida_get_registers', { session: s, thread_id: 1 })).isError, true);
+    const java = await call('frida_java_hook', { session: s, class_name: 'java.lang.String', method: 'length' });
+    assert.equal(java.isError, true, `java hook without a Java runtime: ${java.content[0].text}`);
+    const objc = await call('frida_objc_hook', { session: s, class_name: 'NSString', method: '- length' });
+    assert.equal(objc.isError, true, `objc hook without an ObjC runtime: ${objc.content[0].text}`);
+    assert.doesNotMatch(await ok('frida_list_sessions', {}), /"java"|"objc"/);
     const bad = await call('frida_read_memory', { session: s, address: '0x1', length: 4 });
     assert.equal(bad.isError, true);
     assert.equal((await call('frida_list_modules', { session: '999' })).isError, true);

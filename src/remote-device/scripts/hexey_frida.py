@@ -680,22 +680,18 @@ const pattern = %s;
 const protection = %s;
 const maxResults = %d;
 const results = [];
-Process.enumerateRanges(protection).forEach(function(range) {
-  if (results.length >= maxResults) return;
-  try {
-    Memory.scan(range.base, range.size, pattern, {
-      onMatch: function(address, size) {
-        if (results.length < maxResults) {
-          let sym = null;
-          try { sym = DebugSymbol.fromAddress(address).toString(); } catch(e) {}
-          results.push({ address: address.toString(), size: size, symbol: sym });
-        }
-      },
-      onError: function(reason) {},
-      onComplete: function() {}
-    });
-  } catch(e) {}
-});
+for (const range of Process.enumerateRanges(protection)) {
+  if (results.length >= maxResults) break;
+  let matches;
+  // A range can be unmapped or guarded between enumeration and scanning
+  try { matches = Memory.scanSync(range.base, range.size, pattern); } catch (e) { continue; }
+  for (const m of matches) {
+    if (results.length >= maxResults) break;
+    let sym = null;
+    try { sym = DebugSymbol.fromAddress(m.address).toString(); } catch (e) {}
+    results.push({ address: m.address.toString(), size: m.size, symbol: sym });
+  }
+}
 send(results); send({ done: true });
 """
 
@@ -813,23 +809,35 @@ send(out); send({ done: true });
 """
 
 REGISTERS_JS = """
-const threads = Process.enumerateThreads();
-const t = threads.find(t => t.id === %d);
-if (!t) { send({ error: 'thread not found' }); send({ done: true }); }
-else {
-  const ctx = t.context;
-  const regs = {};
-  for (const k of Object.keys(ctx)) {
-    try { regs[k] = ctx[k].toString(); } catch(e) { regs[k] = String(ctx[k]); }
-  }
-  send(regs); send({ done: true });
+const threadId = %d;
+const t = Process.enumerateThreads().find(t => t.id === threadId);
+if (!t) throw new Error('thread ' + threadId + ' not found (it may have exited; use frida_list_threads for live ids)');
+const ctx = t.context;
+// CpuContext registers are prototype getters, so Object.keys() sees none of them
+const byArch = {
+  x64: ['rax','rbx','rcx','rdx','rsi','rdi','rbp','rsp','r8','r9','r10','r11','r12','r13','r14','r15','rip'],
+  ia32: ['eax','ebx','ecx','edx','esi','edi','ebp','esp','eip'],
+  arm64: Array.from({ length: 29 }, (_, i) => 'x' + i).concat(['fp','lr','sp','pc','nzcv']),
+  arm: Array.from({ length: 13 }, (_, i) => 'r' + i).concat(['sp','lr','pc','cpsr']),
+};
+const names = new Set(byArch[Process.arch] || []);
+for (const k in ctx) names.add(k);
+names.add('pc'); names.add('sp');
+const regs = {};
+for (const k of names) {
+  let v;
+  try { v = ctx[k]; } catch (e) { continue; }
+  if (v === undefined || v === null || typeof v === 'function') continue;
+  regs[k] = v.toString();
 }
+if (Object.keys(regs).length === 0) throw new Error('no registers readable for thread ' + threadId + ' on ' + Process.arch);
+send({ thread_id: threadId, state: t.state, arch: Process.arch, registers: regs }); send({ done: true });
 """
 
 BACKTRACE_JS = """
 const threads = Process.enumerateThreads();
 const t = threads.find(t => t.id === %d);
-if (!t) { send({ error: 'thread not found' }); send({ done: true }); }
+if (!t) throw new Error('thread not found (it may have exited; use frida_list_threads for live ids)');
 else {
   const bt = Thread.backtrace(t.context, Backtracer.ACCURATE);
   const frames = bt.map(addr => {
@@ -950,10 +958,13 @@ Java.perform(function() {
 """
 
 JAVA_HOOK_JS = """
+if (typeof Java === 'undefined') throw new Error('the Java bridge is not loaded in this Frida runtime');
+if (!Java.available) throw new Error('no Java runtime in this process (not an Android app)');
 Java.perform(function() {
   const cls = Java.use(%s);
   const methodName = %s;
   const hookId = %s;
+  if (!cls[methodName] || !cls[methodName].overloads) throw new Error('method not found: ' + methodName);
   const overloads = cls[methodName].overloads;
   overloads.forEach(function(overload) {
     overload.implementation = function() {
@@ -1041,31 +1052,55 @@ def op_java_methods(req):
     return first_payload(msgs)
 
 
+def load_confirmed_hook(s, sid, source, kind, target, wait=10.0):
+    """Load a persistent hook script and return only once it reports {"hooked": true};
+    a script error before that unloads it and raises instead of handing out a hook id."""
+    confirmed = threading.Event()
+    outcome = {}
+
+    def on_message(msg, data):
+        if msg.get("type") == "send":
+            payload = msg.get("payload")
+            if not isinstance(payload, dict):
+                return
+            if payload.get("hooked") and not confirmed.is_set():
+                outcome["info"] = payload
+                confirmed.set()
+                return
+            add_event(sid, payload)
+        elif msg.get("type") == "error":
+            description = msg.get("description", "%s hook error" % kind)
+            if not confirmed.is_set():
+                outcome["error"] = description
+                confirmed.set()
+            else:
+                add_error(sid, description)
+
+    script = s["session"].create_script(source)
+    script.on("message", on_message)
+    script.load()
+    confirmed.wait(wait)
+    if "info" not in outcome:
+        try:
+            script.unload()
+        except Exception:
+            pass
+        raise ValueError(outcome.get("error") or "%s hook was not confirmed within %ds" % (kind, wait))
+    hook_id = str(next_hook[0])
+    next_hook[0] += 1
+    active_hooks.setdefault(sid, {})[hook_id] = {"script": script, "target": target, "type": kind}
+    return hook_id, outcome["info"]
+
+
 def op_java_hook(req):
     s = get_session(req)
     sid = str(req["session"])
     class_name = need(req, "class_name")
     method = need(req, "method")
     hook_id = str(next_hook[0])
-    next_hook[0] += 1
-
-    def on_message(msg, data):
-        if msg.get("type") == "send":
-            payload = msg.get("payload")
-            if isinstance(payload, dict):
-                add_event(sid, payload)
-        elif msg.get("type") == "error":
-            add_error(sid, msg.get("description", "java hook error"))
-
-    script = s["session"].create_script(
-        JAVA_HOOK_JS % (json.dumps(class_name), json.dumps(method), json.dumps(hook_id), json.dumps(class_name))
-    )
-    script.on("message", on_message)
-    script.load()
-    active_hooks.setdefault(sid, {})[hook_id] = {
-        "script": script, "target": "%s.%s" % (class_name, method), "type": "java",
-    }
-    return {"hook_id": hook_id, "class": class_name, "method": method}
+    source = JAVA_HOOK_JS % (json.dumps(class_name), json.dumps(method), json.dumps(hook_id), json.dumps(class_name))
+    hook_id, info = load_confirmed_hook(s, sid, source, "java", "%s.%s" % (class_name, method))
+    return {"hook_id": hook_id, "class": class_name, "method": method, "overloads": info.get("overloads")}
 
 
 def op_java_instances(req):
@@ -1104,12 +1139,14 @@ OBJC_HOOK_JS = """
 const className = %s;
 const selector = %s;
 const hookId = %s;
+if (typeof ObjC === 'undefined') throw new Error('the Objective-C bridge is not loaded in this Frida runtime');
+if (!ObjC.available) throw new Error('no Objective-C runtime in this process (not an iOS/macOS app)');
 const cls = ObjC.classes[className];
-if (!cls) { send({ error: 'class not found: ' + className }); send({ done: true }); }
-else {
+if (!cls) throw new Error('class not found: ' + className);
+{
   const method = cls[selector];
-  if (!method) { send({ error: 'method not found: ' + selector }); send({ done: true }); }
-  else {
+  if (!method) throw new Error('method not found: ' + selector);
+  {
     Interceptor.attach(method.implementation, {
       onEnter: function(args) {
         const nargs = method.argumentTypes ? method.argumentTypes.length : 2;
@@ -1168,24 +1205,8 @@ def op_objc_hook(req):
     class_name = need(req, "class_name")
     method = need(req, "method")
     hook_id = str(next_hook[0])
-    next_hook[0] += 1
-
-    def on_message(msg, data):
-        if msg.get("type") == "send":
-            payload = msg.get("payload")
-            if isinstance(payload, dict):
-                add_event(sid, payload)
-        elif msg.get("type") == "error":
-            add_error(sid, msg.get("description", "objc hook error"))
-
-    script = s["session"].create_script(
-        OBJC_HOOK_JS % (json.dumps(class_name), json.dumps(method), json.dumps(hook_id))
-    )
-    script.on("message", on_message)
-    script.load()
-    active_hooks.setdefault(sid, {})[hook_id] = {
-        "script": script, "target": "%s %s" % (class_name, method), "type": "objc",
-    }
+    source = OBJC_HOOK_JS % (json.dumps(class_name), json.dumps(method), json.dumps(hook_id))
+    hook_id, _ = load_confirmed_hook(s, sid, source, "objc", "%s %s" % (class_name, method))
     return {"hook_id": hook_id, "class": class_name, "method": method}
 
 
