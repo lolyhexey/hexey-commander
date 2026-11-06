@@ -35,9 +35,23 @@ def bridges_source():
     return _bridges[0]
 
 
+# Java.perform waits for an Android app to finish starting. A Java process that
+# is not an app (app_process running a command-line class) never does, so the
+# work runs with performNow once that wait has clearly not ended.
+JAVA_PERFORM_HELPER = """
+function hexeyJavaPerform(fn) {
+  let ran = false;
+  const once = () => { if (!ran) { ran = true; fn(); } };
+  Java.perform(once);
+  if (!ran) setTimeout(() => { if (!ran) Java.performNow(once); }, 3000);
+}
+"""
+
+
 def create_script(s, source):
     if USES_BRIDGE.search(source):
-        source = bridges_source() + "\n;\n" + source
+        helper = JAVA_PERFORM_HELPER if "hexeyJavaPerform(" in source else ""
+        source = bridges_source() + "\n;\n" + helper + source
     return s["session"].create_script(source)
 
 # ---------------------------------------------------------------------------
@@ -955,7 +969,7 @@ def op_stalker_stop(req):
 # ---------------------------------------------------------------------------
 
 JAVA_CLASSES_JS = """
-Java.perform(function() {
+hexeyJavaPerform(function() {
   const f = %s;
   const classes = Java.enumerateLoadedClassesSync();
   const out = classes
@@ -967,7 +981,7 @@ Java.perform(function() {
 """
 
 JAVA_METHODS_JS = """
-Java.perform(function() {
+hexeyJavaPerform(function() {
   const cls = Java.use(%s);
   const methods = cls.class.getDeclaredMethods();
   const out = methods.map(m => ({
@@ -983,7 +997,7 @@ Java.perform(function() {
 JAVA_HOOK_JS = """
 if (typeof Java === 'undefined') throw new Error('the Java bridge is not loaded in this Frida runtime');
 if (!Java.available) throw new Error('no Java runtime in this process (not an Android app)');
-Java.perform(function() {
+hexeyJavaPerform(function() {
   const cls = Java.use(%s);
   const methodName = %s;
   const hookId = %s;
@@ -1008,7 +1022,7 @@ Java.perform(function() {
 """
 
 JAVA_INSTANCES_JS = """
-Java.perform(function() {
+hexeyJavaPerform(function() {
   const className = %s;
   const instances = [];
   Java.choose(className, {
