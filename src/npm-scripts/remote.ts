@@ -40,10 +40,10 @@ Options:
   -h, --help             Show this help
 
 Examples:
-  npx ${getServiceConfig().PACKAGE_NAME}@latest remote
-  npx ${getServiceConfig().PACKAGE_NAME}@latest remote --debug
-  npx ${getServiceConfig().PACKAGE_NAME}@latest remote --logout
-  npx ${getServiceConfig().PACKAGE_NAME}@latest remote --report
+  npx ${getServiceConfig().PACKAGE_NAME} remote
+  npx ${getServiceConfig().PACKAGE_NAME} remote --debug
+  npx ${getServiceConfig().PACKAGE_NAME} remote --logout
+  npx ${getServiceConfig().PACKAGE_NAME} remote --report
 
 Note:
   --logout requires the backend to confirm device and MQTT certificate revocation.

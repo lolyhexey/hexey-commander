@@ -19,8 +19,8 @@
 
 /** The Hexey Commander backend. */
 export const DEFAULT_SERVICE_URL = 'https://commander.hexey.net';
-/** The npm package users run with npx. */
-export const DEFAULT_PACKAGE_NAME = '@hexey/hexey-commander';
+/** What users run with npx: the GitHub repository. */
+export const DEFAULT_PACKAGE_NAME = 'github:lolyhexey/hexey-commander';
 
 export interface ServiceConfig {
     SERVICE_URL: string;

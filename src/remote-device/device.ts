@@ -452,8 +452,8 @@ export class MCPDevice {
                 console.log('└─ Press Ctrl+C to disconnect.');
                 console.log('');
                 console.log('┌─ Commands');
-                console.log(`│ Help:    npx ${getServiceConfig().PACKAGE_NAME}@latest remote --help`);
-                console.log(`│ Log out: npx ${getServiceConfig().PACKAGE_NAME}@latest remote --logout`);
+                console.log(`│ Help:    npx ${getServiceConfig().PACKAGE_NAME} remote --help`);
+                console.log(`│ Log out: npx ${getServiceConfig().PACKAGE_NAME} remote --logout`);
                 console.log('└─ Run these in a new Terminal, or after disconnecting.');
                 console.log('');
             }

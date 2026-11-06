@@ -14,15 +14,15 @@ over MCP, and the server passes each call to your computer.
 Requires Node.js 22.12 or newer.
 
 ```bash
-npx @hexey/hexey-commander@beta remote
+npx github:lolyhexey/hexey-commander remote
 ```
 
 The first run opens your browser to sign in with Google and pair this computer.
 Keep the command running while you use it. Stop with Ctrl+C.
 
 ```bash
-npx @hexey/hexey-commander@beta remote --logout   # unpair this computer
-npx @hexey/hexey-commander@beta remote --help
+npx github:lolyhexey/hexey-commander remote --logout   # unpair this computer
+npx github:lolyhexey/hexey-commander remote --help
 ```
 
 ## Connect the AI
@@ -45,7 +45,7 @@ renames with undo, patching inside the Ghidra project, reports), install
 
 ```powershell
 $env:GHIDRA_INSTALL_DIR = "D:\ghidra_12.2_PUBLIC"
-npx @hexey/hexey-commander@beta remote
+npx github:lolyhexey/hexey-commander remote
 ```
 
 Java is found from `GHIDRA_JAVA_HOME`, `JAVA_HOME`, a JDK under
@@ -63,7 +63,7 @@ results are kept in `%LOCALAPPDATA%\DesktopCommander\ghidra-projects`
 
 ## ภาษาไทย
 
-รัน `npx @hexey/hexey-commander@beta remote` แล้วล็อกอินด้วย Google ในเบราว์เซอร์ที่เปิดขึ้นมา
+รัน `npx github:lolyhexey/hexey-commander remote` แล้วล็อกอินด้วย Google ในเบราว์เซอร์ที่เปิดขึ้นมา
 จากนั้นเพิ่ม connector `https://commander.hexey.net/mcp` ใน ChatGPT หรือ Claude
 ดูคำสั่งที่ AI สั่งได้ตลอดที่ commander.hexey.net/dashboard/live
 

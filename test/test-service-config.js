@@ -66,7 +66,7 @@ check('defaults: the Hexey Commander backend and package, everything else off', 
             TELEMETRY_URL: c.TELEMETRY_URL, FLAGS_URL: c.FLAGS_URL, MQTT_BROKER: c.MQTT_BROKER, WELCOME_URL: c.WELCOME_URL }));
     `);
     assert.equal(config.SERVICE_URL, 'https://commander.hexey.net');
-    assert.equal(config.PACKAGE_NAME, '@hexey/hexey-commander');
+    assert.equal(config.PACKAGE_NAME, 'github:lolyhexey/hexey-commander');
     for (const key of ['TELEMETRY_URL', 'FLAGS_URL', 'MQTT_BROKER', 'WELCOME_URL']) assert.equal(config[key], null, key);
 });
 

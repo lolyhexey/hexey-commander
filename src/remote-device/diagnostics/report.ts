@@ -38,7 +38,7 @@ const MCP_INFO_ROUNDS = 5;
 const NPM_TIMEOUT_MS = 5000;
 const PROCESS_LIST_TIMEOUT_MS = 10000;
 /** The npm package, and the MCPB bundle (named from manifest.json). */
-const PACKAGE_NAMES = new Set(['@wonderwhy-er/desktop-commander', 'desktop-commander', getServiceConfig().PACKAGE_NAME]);
+const PACKAGE_NAMES = new Set(['@wonderwhy-er/desktop-commander', 'desktop-commander', '@hexey/hexey-commander', getServiceConfig().PACKAGE_NAME]);
 /** `desktop-commander <these>` is not the MCP server. */
 const NOT_THE_SERVER = new Set(['remote', 'setup', 'remove']);
 /** A rotated log file is 1 MB at most; read no more than this of a larger one. */
