@@ -113,12 +113,12 @@ def get_session(req):
     return s
 
 
-def add_session(session_obj, pid, name, spawned):
+def add_session(session_obj, pid, name, spawned, dev):
     sid = str(next_session[0])
     next_session[0] += 1
     sessions[sid] = {
         "session": session_obj, "pid": pid, "name": name,
-        "spawned": spawned, "scripts": [],
+        "spawned": spawned, "scripts": [], "device": dev,
     }
     event_buffers[sid] = []
     error_buffers[sid] = []
@@ -286,7 +286,7 @@ def op_attach(req):
     else:
         name = next((p.name for p in d.enumerate_processes() if p.pid == pid), str(pid))
     session_obj = d.attach(pid)
-    sid = add_session(session_obj, pid, name, False)
+    sid = add_session(session_obj, pid, name, False, d)
     return {"session": sid, "pid": pid, "name": name}
 
 
@@ -296,33 +296,51 @@ def op_spawn(req):
     argv = [program] + [str(a) for a in (req.get("args") or [])]
     pid = d.spawn(argv)
     session_obj = d.attach(pid)
-    sid = add_session(session_obj, pid, program, True)
+    sid = add_session(session_obj, pid, program, True, d)
     if not req.get("suspended"):
         d.resume(pid)
-    return {"session": sid, "pid": pid, "suspended": bool(req.get("suspended"))}
+    out = {"session": sid, "pid": pid, "suspended": bool(req.get("suspended"))}
+    if req.get("suspended") and d.type != "local":
+        out["note"] = "Android kills an app that is not resumed within about 10 s (ActivityManager start timeout); resume right away."
+    return out
 
 
 def op_resume(req):
+    # The session's own device: a pid only means something on the device it came from.
     s = get_session(req)
-    d = get_device(req)
-    d.resume(s["pid"])
+    s["device"].resume(s["pid"])
     return {"resumed": s["pid"]}
 
 
+def process_alive(d, pid):
+    try:
+        return any(p.pid == pid for p in d.enumerate_processes())
+    except Exception:
+        return None
+
+
 def op_kill(req):
-    d = get_device(req)
     sid = req.get("session")
     pid = req.get("pid")
     if sid:
         s = sessions.get(str(sid))
-        if s:
-            pid = s["pid"]
-            _cleanup_session(str(sid))
-    if pid is None:
-        raise ValueError("provide session or pid")
-    pid = int(pid)
+        if s is None:
+            raise ValueError("no session %s (open sessions: %s)" % (sid, ", ".join(sessions) or "none"))
+        d, pid = s["device"], s["pid"]
+        _cleanup_session(str(sid))
+    else:
+        if pid is None:
+            raise ValueError("provide session or pid")
+        d, pid = get_device(req), int(pid)
     d.kill(pid)
-    return {"killed": pid}
+    for _ in range(20):
+        if process_alive(d, pid) is not True:
+            break
+        time.sleep(0.1)
+    alive = process_alive(d, pid)
+    if alive:
+        raise ValueError("process %d on %s is still running after kill" % (pid, d.name))
+    return {"killed": pid, "device": d.id}
 
 
 def op_sessions(req):
@@ -365,12 +383,14 @@ def op_detach(req):
     _cleanup_session_state(sid, s)
     if not s["session"].is_detached:
         s["session"].detach()
+    killed = False
     if req.get("kill") and s["spawned"]:
         try:
-            device.kill(s["pid"])
+            s["device"].kill(s["pid"])
+            killed = True
         except Exception:
             pass
-    return {"detached": sid, "pid": s["pid"]}
+    return {"detached": sid, "pid": s["pid"], "killed": killed}
 
 
 def _cleanup_session_state(sid, s):
