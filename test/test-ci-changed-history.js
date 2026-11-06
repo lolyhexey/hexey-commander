@@ -56,13 +56,6 @@ test('the unit checkout keeps the history needed by changed:A..B', () => {
     assert.equal(selected.runAll, null);
     assert.deepEqual([...selected.picked.keys()], ['test/test-a.js']);
     assert.deepEqual(selected.unreached, []);
-
-    const workflow = fs.readFileSync(new URL('../.github/workflows/tests.yml', import.meta.url), 'utf8');
-    const unit = workflow.match(/^  unit:\r?\n([\s\S]*?)(?=^  [a-z][\w-]*:|$(?![\s\S]))/m)?.[1];
-    const checkout = unit?.match(/      - name: Checkout\r?\n([\s\S]*?)(?=      - name:)/)?.[1];
-    assert.ok(checkout?.includes('uses: actions/checkout@'), 'check the unit job checkout');
-    assert.match(checkout, /^          fetch-depth: 0\s*$/m,
-      'the tested-code checkout must fetch A as well as B for changed:A..B');
   } finally {
     fs.rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }

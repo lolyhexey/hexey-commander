@@ -144,6 +144,11 @@ try {
 } finally {
   for (const child of standIns) if (isRunning(child.pid)) child.kill();
   await waitForExit(standInPids);
-  rmSync(temp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  // Windows can hold a just-killed stand-in .exe open for a while; a leftover temp folder is not a test failure
+  try {
+    rmSync(temp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  } catch (error) {
+    console.warn(`warning: could not remove ${temp}: ${error.code ?? error.message}`);
+  }
 }
 process.exitCode = failed ? 1 : 0;
