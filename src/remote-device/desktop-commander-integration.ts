@@ -9,6 +9,7 @@ import { GHIDRA_TOOLS, callGhidraTool, isGhidraTool, resolveGhidraSetup } from '
 import { FRIDA_TOOLS, callFridaTool, isFridaTool, resolveFridaSetup } from './frida-tools.js';
 import { JADX_TOOLS, callJadxTool, isJadxTool, resolveJadxSetup } from './jadx-tools.js';
 import { APKTOOL_TOOLS, callApktoolTool, isApktoolTool, resolveApktoolSetup } from './apktool-tools.js';
+import { ADB_TOOLS, callAdbTool, isAdbTool, resolveAdbSetup } from './adb-tools.js';
 import { BRIDGE_TOOLS, callBridgeTool, isBridgeTool } from './bridge-tools.js';
 
 /** The device's environment, as the string map a child process gets */
@@ -324,6 +325,11 @@ export class DesktopCommanderIntegration {
             if (!setup) throw new Error('apktool is not set up on this device (set APKTOOL_JAR to an apktool jar).');
             return callApktoolTool(setup, toolName, args ?? {});
         }
+        if (isAdbTool(toolName)) {
+            const setup = resolveAdbSetup();
+            if (!setup) throw new Error('adb tools are not turned on for this device (set ADB_ENABLED=1).');
+            return callAdbTool(setup, toolName, args ?? {});
+        }
         if (isBridgeTool(toolName)) {
             const ghidra = resolveGhidraSetup();
             const frida = resolveFridaSetup();
@@ -377,8 +383,9 @@ export class DesktopCommanderIntegration {
             const bridge = (resolveGhidraSetup() && resolveFridaSetup()) ? BRIDGE_TOOLS : [];
             const jadx = resolveJadxSetup() ? JADX_TOOLS : [];
             const apktool = resolveApktoolSetup() ? APKTOOL_TOOLS : [];
+            const adb = resolveAdbSetup() ? ADB_TOOLS : [];
             return {
-                tools: [...(mcpTools.tools || []), ...ghidra, ...frida, ...bridge, ...jadx, ...apktool]
+                tools: [...(mcpTools.tools || []), ...ghidra, ...frida, ...bridge, ...jadx, ...apktool, ...adb]
             };
         } catch (error) {
             console.error('Error fetching capabilities:', error);
