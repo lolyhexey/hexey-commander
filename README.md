@@ -113,6 +113,23 @@ npx github:lolyhexey/hexey-commander remote
 For a phone, run a `frida-server` of the same version as the `frida` module on
 it. `FRIDA_PYTHON` picks the Python to use (default `python`, then `py`).
 
+To give the AI adb tools (list devices, shell commands, install, pull and push
+files, logcat, pull an installed app's APKs for jadx or apktool), start with
+`ADB_ENABLED=1`. adb comes from the Android SDK (`ANDROID_HOME`,
+`ANDROID_SDK_ROOT`, `%LOCALAPPDATA%\Android\Sdk`), `ADB_PATH`, or PATH.
+
+```powershell
+$env:ADB_ENABLED = "1"
+npx github:lolyhexey/hexey-commander remote
+```
+
+### What these tools can reach
+
+The Ghidra, jadx, apktool, Frida and adb tools take any path on this computer
+you name; `allowedDirectories` limits only the built-in file tools. Turning one
+on lets the AI read the files it is pointed at, run code on attached devices
+(adb, Frida) and install apps on them. Turn on only the ones you need.
+
 ## Settings
 
 | Variable | Default | |
@@ -124,6 +141,8 @@ it. `FRIDA_PYTHON` picks the Python to use (default `python`, then `py`).
 | `JADX_OUTPUT_DIR` | see above | Where jadx results are stored |
 | `APKTOOL_JAR` | not set | Turns on the apktool tools |
 | `APKTOOL_WORK_DIR` | see above | Where decoded and rebuilt APKs are kept |
+| `ADB_ENABLED` | not set | `1` turns on the adb tools |
+| `ADB_PATH` | from the SDK | adb to use |
 | `ANDROID_HOME` | `%LOCALAPPDATA%\Android\Sdk` | Android SDK for apksigner, zipalign and adb |
 | `FRIDA_ENABLED` | not set | `1` turns on the Frida tools |
 | `FRIDA_PYTHON` | `python` | Python that has the `frida` module |
@@ -146,7 +165,10 @@ it. `FRIDA_PYTHON` picks the Python to use (default `python`, then `py`).
 - Ghidra: `$env:GHIDRA_INSTALL_DIR = "D:\ghidra_12.2_PUBLIC"` (ต้องมี JDK)
 - jadx: `$env:JADX_HOME = "D:\jadx-1.5.6"` (โฟลเดอร์ที่แตกจาก `jadx-<version>.zip`, ต้องมี JDK)
 - apktool: `$env:APKTOOL_JAR = "D:\tools\apktool_3.0.3.jar"` (แก้ smali แล้ว build, sign, install ได้; ต้องมี JDK และ Android SDK build-tools สำหรับ sign)
+- adb: `$env:ADB_ENABLED = "1"` (สั่ง shell, ติดตั้งแอป, ดึงไฟล์และ APK, อ่าน logcat ของมือถือที่ต่ออยู่)
 - Frida: `pip install frida` แล้ว `$env:FRIDA_ENABLED = "1"` (มือถือต้องรัน `frida-server` เวอร์ชันเดียวกัน)
+
+ข้อควรรู้: เครื่องมือเหล่านี้เข้าถึงไฟล์ได้ทุก path โดยไม่สน `allowedDirectories` และ adb กับ Frida สั่งงานมือถือได้จริง เปิดเฉพาะตัวที่ใช้
 
 ถ้าอยากให้ค่าอยู่ถาวร ใช้ `setx JADX_HOME "D:\jadx-1.5.6"` แล้วเปิดหน้าต่างใหม่
 

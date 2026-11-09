@@ -466,7 +466,7 @@ export class MCPDevice {
                 console.log('   - Retrying in the background; commands start working once you see "✅ Device ready".');
             } else {
                 console.log('');
-                console.log('✅ Desktop Commander Remote is connected');
+                console.log('✅ Hexey Commander Remote is connected');
                 console.log('');
                 console.log(`   Device: ${deviceName}`);
                 console.log('   Status: Online');
