@@ -23,3 +23,7 @@ jobs:
         uses: codespell-project/codespell-problem-matcher@v1
       - name: Codespell
         uses: codespell-project/actions-codespell@v2
+        with:
+          # The action passes its own --skip, which replaces the one in
+          # .codespellrc, so the generated, minified bridge bundle is skipped here too.
+          skip: ./.git,*.svg,package-lock.json,*.css,.codespellrc,./src/remote-device/scripts/frida-bridges.js,./node_modules,./dist
