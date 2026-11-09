@@ -53,6 +53,19 @@ Java is found from `GHIDRA_JAVA_HOME`, `JAVA_HOME`, a JDK under
 results are kept in `%LOCALAPPDATA%\DesktopCommander\ghidra-projects`
 (`GHIDRA_PROJECTS_DIR` to change). The binaries you analyze are never modified.
 
+To give the AI jadx tools (decompile an APK, DEX, AAR or JAR to Java, list and
+read classes, search the code, read the manifest and resources), download
+[jadx](https://github.com/skylot/jadx/releases) (`jadx-<version>.zip`), unzip it
+and start with `JADX_HOME` set to that folder:
+
+```powershell
+$env:JADX_HOME = "D:\jadx-1.5.6"
+npx github:lolyhexey/hexey-commander remote
+```
+
+Java is found the same way as for Ghidra (`JADX_JAVA_HOME` first). Results are
+kept in `%LOCALAPPDATA%\DesktopCommander\jadx-output` (`JADX_OUTPUT_DIR` to change).
+
 ## Settings
 
 | Variable | Default | |
@@ -60,6 +73,8 @@ results are kept in `%LOCALAPPDATA%\DesktopCommander\ghidra-projects`
 | `MCP_SERVER_URL` | `https://commander.hexey.net` | The server to connect to |
 | `GHIDRA_INSTALL_DIR` | not set | Turns on the Ghidra tools |
 | `GHIDRA_PROJECTS_DIR` | see above | Where Ghidra results are stored |
+| `JADX_HOME` | not set | Turns on the jadx tools |
+| `JADX_OUTPUT_DIR` | see above | Where jadx results are stored |
 
 ## ภาษาไทย
 

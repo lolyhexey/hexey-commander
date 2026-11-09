@@ -100,10 +100,10 @@ export interface GhidraSetup {
     projectsDir: string;
 }
 
-const javaExe = process.platform === 'win32' ? 'java.exe' : 'java';
+export const javaExe = process.platform === 'win32' ? 'java.exe' : 'java';
 
 /** The newest JDK under the usual Windows install folders, if any. */
-function findWindowsJdk(): string | undefined {
+export function findWindowsJdk(): string | undefined {
     for (const root of ['C:\\Program Files\\Eclipse Adoptium', 'C:\\Program Files\\Java', 'C:\\Program Files\\Microsoft']) {
         let names: string[] = [];
         try { names = readdirSync(root); } catch { continue; }

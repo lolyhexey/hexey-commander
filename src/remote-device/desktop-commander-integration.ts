@@ -7,6 +7,7 @@ import { captureRemote } from '../utils/capture.js';
 import { resolveShellPath } from '../utils/shell.js';
 import { GHIDRA_TOOLS, callGhidraTool, isGhidraTool, resolveGhidraSetup } from './ghidra-tools.js';
 import { FRIDA_TOOLS, callFridaTool, isFridaTool, resolveFridaSetup } from './frida-tools.js';
+import { JADX_TOOLS, callJadxTool, isJadxTool, resolveJadxSetup } from './jadx-tools.js';
 import { BRIDGE_TOOLS, callBridgeTool, isBridgeTool } from './bridge-tools.js';
 
 /** The device's environment, as the string map a child process gets */
@@ -312,6 +313,11 @@ export class DesktopCommanderIntegration {
             if (!setup) throw new Error('Frida is not set up on this device (set FRIDA_ENABLED=1 and install the frida Python module).');
             return callFridaTool(setup, toolName, args ?? {});
         }
+        if (isJadxTool(toolName)) {
+            const setup = resolveJadxSetup();
+            if (!setup) throw new Error('jadx is not set up on this device (set JADX_HOME to a jadx install).');
+            return callJadxTool(setup, toolName, args ?? {});
+        }
         if (isBridgeTool(toolName)) {
             const ghidra = resolveGhidraSetup();
             const frida = resolveFridaSetup();
@@ -363,8 +369,9 @@ export class DesktopCommanderIntegration {
             const ghidra = resolveGhidraSetup() ? GHIDRA_TOOLS : [];
             const frida = resolveFridaSetup() ? FRIDA_TOOLS : [];
             const bridge = (resolveGhidraSetup() && resolveFridaSetup()) ? BRIDGE_TOOLS : [];
+            const jadx = resolveJadxSetup() ? JADX_TOOLS : [];
             return {
-                tools: [...(mcpTools.tools || []), ...ghidra, ...frida, ...bridge]
+                tools: [...(mcpTools.tools || []), ...ghidra, ...frida, ...bridge, ...jadx]
             };
         } catch (error) {
             console.error('Error fetching capabilities:', error);
