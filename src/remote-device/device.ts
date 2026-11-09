@@ -19,6 +19,24 @@ import { rolloutManager } from './rollouts.js';
 import { getRemoteDeviceConfigPath, isBackendLocal } from './remote-utils.js';
 import { isRemoteToolAllowed } from './tool-allowlist.js';
 import { getServiceConfig } from './service-config.js';
+import { CONFIG_FILE } from '../config.js';
+
+/**
+ * The folders the local server limits file access to, from its config file.
+ * A config left by an earlier Desktop Commander install can carry a list the
+ * person no longer remembers, so the device names it at startup. Empty when
+ * there is no limit or the file cannot be read.
+ */
+export async function readAllowedDirectories(file: string = CONFIG_FILE): Promise<string[]> {
+    try {
+        const dirs = JSON.parse(await fs.readFile(file, 'utf8'))?.allowedDirectories;
+        if (!Array.isArray(dirs)) return [];
+        const list = dirs.filter((d: unknown): d is string => typeof d === 'string' && d.trim() !== '');
+        return list.includes('/') ? [] : list;
+    } catch {
+        return [];
+    }
+}
 
 export { getRemoteDeviceConfigPath };
 
@@ -437,6 +455,13 @@ export class MCPDevice {
             console.log(`   - Device Name:  ${deviceName}`);
             console.log(`   - Version:      ${VERSION}`);
             console.debug(`   - Server URL:   ${this.baseServerUrl}`);
+            const allowed = await readAllowedDirectories();
+            if (allowed.length > 0) {
+                console.log(`   - ⚠️ File access is limited to ${allowed.length} folder(s) by ${CONFIG_FILE}:`);
+                for (const dir of allowed.slice(0, 10)) console.log(`       ${dir}`);
+                if (allowed.length > 10) console.log(`       ... and ${allowed.length - 10} more`);
+                console.log('     Other paths are refused. To allow every path, set "allowedDirectories": [] in that file and restart.');
+            }
             if (!reachable) {
                 console.log('   - Retrying in the background; commands start working once you see "✅ Device ready".');
             } else {
