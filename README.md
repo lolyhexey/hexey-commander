@@ -66,6 +66,20 @@ npx github:lolyhexey/hexey-commander remote
 Java is found the same way as for Ghidra (`JADX_JAVA_HOME` first). Results are
 kept in `%LOCALAPPDATA%\DesktopCommander\jadx-output` (`JADX_OUTPUT_DIR` to change).
 
+To give the AI Frida tools (attach to or spawn processes on this computer or a
+USB Android/iOS device, hook functions, Java/ObjC hooks, memory scan and
+read/write, registers, JNI trace), install Python and the `frida` module, then
+start with `FRIDA_ENABLED=1`:
+
+```powershell
+pip install frida
+$env:FRIDA_ENABLED = "1"
+npx github:lolyhexey/hexey-commander remote
+```
+
+For a phone, run a `frida-server` of the same version as the `frida` module on
+it. `FRIDA_PYTHON` picks the Python to use (default `python`, then `py`).
+
 ## Settings
 
 | Variable | Default | |
@@ -75,12 +89,23 @@ kept in `%LOCALAPPDATA%\DesktopCommander\jadx-output` (`JADX_OUTPUT_DIR` to chan
 | `GHIDRA_PROJECTS_DIR` | see above | Where Ghidra results are stored |
 | `JADX_HOME` | not set | Turns on the jadx tools |
 | `JADX_OUTPUT_DIR` | see above | Where jadx results are stored |
+| `FRIDA_ENABLED` | not set | `1` turns on the Frida tools |
+| `FRIDA_PYTHON` | `python` | Python that has the `frida` module |
+| `GHIDRA_JAVA_HOME` / `JADX_JAVA_HOME` / `JAVA_HOME` | auto | The JDK Ghidra / jadx run on |
 
 ## ภาษาไทย
 
 รัน `npx github:lolyhexey/hexey-commander remote` แล้วล็อกอินด้วย Google ในเบราว์เซอร์ที่เปิดขึ้นมา
 จากนั้นเพิ่ม connector `https://commander.hexey.net/mcp` ใน ChatGPT หรือ Claude
 ดูคำสั่งที่ AI สั่งได้ตลอดที่ commander.hexey.net/dashboard/live
+
+เครื่องมือเสริม จะเปิดเมื่อตั้งค่า ENV ก่อนรัน `remote` (PowerShell):
+
+- Ghidra: `$env:GHIDRA_INSTALL_DIR = "D:\ghidra_12.2_PUBLIC"` (ต้องมี JDK)
+- jadx: `$env:JADX_HOME = "D:\jadx-1.5.6"` (โฟลเดอร์ที่แตกจาก `jadx-<version>.zip`, ต้องมี JDK)
+- Frida: `pip install frida` แล้ว `$env:FRIDA_ENABLED = "1"` (มือถือต้องรัน `frida-server` เวอร์ชันเดียวกัน)
+
+ถ้าอยากให้ค่าอยู่ถาวร ใช้ `setx JADX_HOME "D:\jadx-1.5.6"` แล้วเปิดหน้าต่างใหม่
 
 ## Credits and license
 
