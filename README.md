@@ -25,6 +25,23 @@ npx github:lolyhexey/hexey-commander remote --logout   # unpair this computer
 npx github:lolyhexey/hexey-commander remote --help
 ```
 
+`npx github:...` needs `git` on PATH (without it npm fails with `spawn git ENOENT`).
+If a previous Desktop Commander install limited file access, `remote` lists the
+allowed folders at startup; set `"allowedDirectories": []` in
+`~/.claude-server-commander/config.json` to allow every path.
+
+### Android (Termux)
+
+Install Termux from F-Droid or GitHub (not the old Play Store build), then:
+
+```bash
+pkg install nodejs git ripgrep
+npx github:lolyhexey/hexey-commander remote
+```
+
+Open the sign-in link it prints in the phone's browser. `ripgrep` is needed for
+file search: the bundled ripgrep has no Android build.
+
 ## Connect the AI
 
 Add a custom connector (MCP server) with this URL and sign in with the same Google account:
@@ -66,6 +83,22 @@ npx github:lolyhexey/hexey-commander remote
 Java is found the same way as for Ghidra (`JADX_JAVA_HOME` first). Results are
 kept in `%LOCALAPPDATA%\DesktopCommander\jadx-output` (`JADX_OUTPUT_DIR` to change).
 
+To let the AI change an APK (apktool decode to smali and resources, edit files,
+build, zipalign, sign with a local debug key, install with adb), download
+[apktool](https://github.com/iBotPeaches/Apktool/releases) (`apktool_<version>.jar`)
+and start with `APKTOOL_JAR` set to it:
+
+```powershell
+$env:APKTOOL_JAR = "D:\tools\apktool_3.0.3.jar"
+npx github:lolyhexey/hexey-commander remote
+```
+
+Signing and aligning use `apksigner` and `zipalign` from the newest Android SDK
+build-tools (`ANDROID_HOME`, `ANDROID_SDK_ROOT` or `%LOCALAPPDATA%\Android\Sdk`);
+installing uses that SDK's `adb`. The debug key is created on first build. Work
+is kept in `%LOCALAPPDATA%\DesktopCommander\apktool` (`APKTOOL_WORK_DIR` to
+change). The original APK is never modified.
+
 To give the AI Frida tools (attach to or spawn processes on this computer or a
 USB Android/iOS device, hook functions, Java/ObjC hooks, memory scan and
 read/write, registers, JNI trace), install Python and the `frida` module, then
@@ -89,9 +122,12 @@ it. `FRIDA_PYTHON` picks the Python to use (default `python`, then `py`).
 | `GHIDRA_PROJECTS_DIR` | see above | Where Ghidra results are stored |
 | `JADX_HOME` | not set | Turns on the jadx tools |
 | `JADX_OUTPUT_DIR` | see above | Where jadx results are stored |
+| `APKTOOL_JAR` | not set | Turns on the apktool tools |
+| `APKTOOL_WORK_DIR` | see above | Where decoded and rebuilt APKs are kept |
+| `ANDROID_HOME` | `%LOCALAPPDATA%\Android\Sdk` | Android SDK for apksigner, zipalign and adb |
 | `FRIDA_ENABLED` | not set | `1` turns on the Frida tools |
 | `FRIDA_PYTHON` | `python` | Python that has the `frida` module |
-| `GHIDRA_JAVA_HOME` / `JADX_JAVA_HOME` / `JAVA_HOME` | auto | The JDK Ghidra / jadx run on |
+| `GHIDRA_JAVA_HOME` / `JADX_JAVA_HOME` / `APKTOOL_JAVA_HOME` / `JAVA_HOME` | auto | The JDK Ghidra / jadx / apktool run on |
 
 ## ภาษาไทย
 
@@ -99,10 +135,17 @@ it. `FRIDA_PYTHON` picks the Python to use (default `python`, then `py`).
 จากนั้นเพิ่ม connector `https://commander.hexey.net/mcp` ใน ChatGPT หรือ Claude
 ดูคำสั่งที่ AI สั่งได้ตลอดที่ commander.hexey.net/dashboard/live
 
+ต้องมี `git` ในเครื่องด้วย ถ้าไม่มีจะขึ้น `spawn git ENOENT`
+
+ใช้บนมือถือ (Termux): `pkg install nodejs git ripgrep` แล้วรันคำสั่งเดียวกัน เปิดลิงก์ล็อกอินที่ขึ้นมาในเบราว์เซอร์ของมือถือ
+
+ถ้าเข้าบางโฟลเดอร์ไม่ได้ (`Path not allowed`) แปลว่า config เก่าจำกัดโฟลเดอร์ไว้ ตอนเริ่ม `remote` จะแสดงรายการโฟลเดอร์นั้นให้เห็น แก้ `"allowedDirectories": []` ใน `~/.claude-server-commander/config.json` แล้วรันใหม่
+
 เครื่องมือเสริม จะเปิดเมื่อตั้งค่า ENV ก่อนรัน `remote` (PowerShell):
 
 - Ghidra: `$env:GHIDRA_INSTALL_DIR = "D:\ghidra_12.2_PUBLIC"` (ต้องมี JDK)
 - jadx: `$env:JADX_HOME = "D:\jadx-1.5.6"` (โฟลเดอร์ที่แตกจาก `jadx-<version>.zip`, ต้องมี JDK)
+- apktool: `$env:APKTOOL_JAR = "D:\tools\apktool_3.0.3.jar"` (แก้ smali แล้ว build, sign, install ได้; ต้องมี JDK และ Android SDK build-tools สำหรับ sign)
 - Frida: `pip install frida` แล้ว `$env:FRIDA_ENABLED = "1"` (มือถือต้องรัน `frida-server` เวอร์ชันเดียวกัน)
 
 ถ้าอยากให้ค่าอยู่ถาวร ใช้ `setx JADX_HOME "D:\jadx-1.5.6"` แล้วเปิดหน้าต่างใหม่
