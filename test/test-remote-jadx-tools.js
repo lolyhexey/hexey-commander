@@ -58,6 +58,8 @@ try {
     assert.match(src.content[0].text, /class /);
     assert.match((await call('jadx_get_manifest', {})).content[0].text, /<manifest/);
     assert.match((await call('jadx_search_code', { query: 'class', max: 2 })).content[0].text, /^2 matches/);
+    assert.equal((await call('jadx_find_usages', { class: 'NoPackage' })).isError, true);
+    assert.match((await call('jadx_find_usages', { class: classes[1] })).content[0].text, /usages of /);
     // Paths may not climb out of the output folder.
     assert.equal((await call('jadx_get_resource', { path: '../../' + path.basename(testApk) })).isError, true);
     console.log('jadx end-to-end: passed');

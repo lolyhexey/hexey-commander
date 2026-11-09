@@ -70,6 +70,22 @@ export const JADX_TOOLS = [
         annotations: ro,
     },
     {
+        name: 'jadx_find_usages',
+        title: 'jadx: find usages',
+        description: 'Where a class, or one of its methods or fields, is used in the decompiled Java: class, line number and the line. Found by reading the source (classes that import the class, name it in full or share its package), not by a bytecode index, so a call through a subclass or an interface can be missed.',
+        inputSchema: {
+            type: 'object' as const,
+            properties: {
+                file: FILE,
+                class: { type: 'string', description: 'Fully qualified class name, e.g. "com.example.net.Api".' },
+                member: { type: 'string', description: 'Optional method or field name, e.g. "login". Without it, every mention of the class.' },
+                max: { type: 'integer', description: 'Most matches (default 300, max 2000).' },
+            },
+            required: ['file', 'class'],
+        },
+        annotations: ro,
+    },
+    {
         name: 'jadx_get_manifest',
         title: 'jadx: AndroidManifest.xml',
         description: 'The decoded AndroidManifest.xml of a decompiled APK.',
@@ -278,6 +294,51 @@ export async function callJadxTool(setup: JadxSetup, name: string, args: Record<
                 if (out.length >= max) break;
             }
             const head = out.length >= max ? `${out.length} matches (stopped at max ${max})` : `${out.length} matches in ${files} classes`;
+            return text(`${head}\n${out.join('\n')}`);
+        }
+
+        if (name === 'jadx_find_usages') {
+            const fqn = typeof args.class === 'string' ? args.class.trim().replace(/\$/g, '.') : '';
+            if (!/^[\w$.]+$/.test(fqn) || !fqn.includes('.')) return text('ERROR: class must be a fully qualified name, e.g. com.example.Api.', true);
+            const member = typeof args.member === 'string' ? args.member.trim() : '';
+            if (member && !/^[\w$]+$/.test(member)) return text('ERROR: member must be a plain method or field name.', true);
+            const max = Math.min(Math.max(Number(args.max) || 300, 1), 2000);
+            const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const parts = fqn.split('.');
+            // An inner class (a.b.Outer.Inner) is written Outer.Inner by code that imports Outer.
+            const outerIdx = parts.findIndex((p, i) => i > 0 && /^[A-Z]/.test(p));
+            const pkg = parts.slice(0, outerIdx > 0 ? outerIdx : parts.length - 1).join('.');
+            const simple = parts.slice(outerIdx > 0 ? outerIdx : parts.length - 1).join('.');
+            const topLevel = `${pkg}.${simple.split('.')[0]}`;
+            const ownFile = `${topLevel.split('.').join('/')}.java`;
+            const nameRe = new RegExp(`(?<![\\w.])(?:${esc(fqn)}|${esc(simple)})\\b`);
+            const memberRe = member ? new RegExp(`(?:\\b${esc(simple)}|\\b${esc(fqn)}|\\bthis|\\bsuper|\\w|\\))\\s*\\.\\s*${esc(member)}\\b|(?<![\\w.])${esc(member)}\\s*\\(`) : undefined;
+            const out: string[] = [];
+            let scanned = 0;
+            for (const rel of (await walk(sourcesDir)).filter((f) => f.endsWith('.java')).sort()) {
+                const src = await fs.readFile(path.join(sourcesDir, rel), 'utf8');
+                const relPkg = path.posix.dirname(rel).split('/').join('.');
+                const isOwn = rel === ownFile;
+                const sees = isOwn || relPkg === pkg || src.includes(`import ${topLevel};`) || src.includes(`import ${pkg}.*;`) || src.includes(fqn);
+                if (!sees) continue;
+                scanned++;
+                const lines = src.split(/\r?\n/);
+                for (let i = 0; i < lines.length && out.length < max; i++) {
+                    const l = lines[i];
+                    if (/^\s*(import|package)\s/.test(l)) continue;
+                    if (memberRe) {
+                        // In the class's own file a bare call counts; elsewhere it must go through the class name or an instance.
+                        const hit = isOwn ? memberRe.test(l) : (memberRe.test(l) && (nameRe.test(src) || src.includes(fqn)));
+                        if (!hit) continue;
+                    } else if (isOwn || !nameRe.test(l)) {
+                        continue;
+                    }
+                    out.push(`${classOf(rel)}:${i + 1}: ${l.trim().slice(0, 300)}`);
+                }
+                if (out.length >= max) break;
+            }
+            const what = member ? `${fqn}.${member}` : fqn;
+            const head = out.length >= max ? `${out.length} usages of ${what} (stopped at max ${max})` : `${out.length} usages of ${what} in ${scanned} classes that can see it`;
             return text(`${head}\n${out.join('\n')}`);
         }
 
